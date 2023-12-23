@@ -65,7 +65,8 @@ class ESFPModule(LightningModule):
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
         loss: str,
-        weight: List[int] = None
+        weight: List[int] = None,
+        img_size: List[int] = [352, 352],
     ):
         super().__init__()
 
@@ -74,7 +75,7 @@ class ESFPModule(LightningModule):
         self.save_hyperparameters(logger=False)
 
         self.net = net
-        self.img_size= [352,352]
+        self.img_size= [256, 256]
         # loss function
         if loss == 'dc-ce':
             self.criterion = DC_and_CE_loss({'batch_dice': True, 'smooth': 1e-5, 'do_bg': False}, {})

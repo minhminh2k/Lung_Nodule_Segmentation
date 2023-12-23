@@ -1,10 +1,15 @@
 _target_: src.data.LIDC_datamodule.LIDCDataModule
-nodule_dir: ${paths.data_dir}/LIDC-IDRI-Preprocessing/data/Image
-clean_dir: ${paths.data_dir}/LIDC-IDRI-Preprocessing/data/Clean/Image
+
+defaults:
+  - transform_train: default.yaml
+  - transform_val: default.yaml
+
+nodule_dir: /work/hpc/dqm/LIDC-IDRI-Preprocessing/segment_data/Image
+clean_dir: /work/hpc/dqm/LIDC-IDRI-Preprocessing/segment_data/Clean/Image
 train_val_test_split: [3, 1, 1]
 batch_size: 8
 num_workers: 0
 pin_memory: True
 num_nodule: 5000
 num_clean: 5000
-img_size: [352, 352]
+img_size: [256, 256]

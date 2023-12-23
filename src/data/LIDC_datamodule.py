@@ -9,6 +9,9 @@ import torchvision.transforms as transforms
 from typing import Any, Dict, Optional, Tuple
 import time
 import csv
+import albumentations as A
+from albumentations import Compose
+from albumentations.pytorch.transforms import ToTensorV2
 
 
 class LIDC_IDRI_Dataset(Dataset):
@@ -46,15 +49,15 @@ class LIDC_IDRI_Dataset(Dataset):
                 # image = self._normalize_image(image)
                 mask = np.load(mask_path)
 
-                # convert image, mask to tensor
+                # # convert image, mask to tensor
 
-                image = torch.from_numpy(image).to(torch.float)
-                mask = torch.from_numpy(mask).to(torch.float)
+                # image = torch.from_numpy(image).to(torch.float)
+                # mask = torch.from_numpy(mask).to(torch.float)
 
                 # add batch dimension 
 
-                image = image.unsqueeze(0)
-                mask = mask.unsqueeze(0)
+                # image = image.unsqueeze(0)
+                # mask = mask.unsqueeze(0)
                 file_list.append((image, mask))
         
         for dicom_path in self.clean_path:
@@ -74,13 +77,13 @@ class LIDC_IDRI_Dataset(Dataset):
 
                 # convert image, mask to tensor
 
-                image = torch.from_numpy(image).to(torch.float)
-                mask = torch.from_numpy(mask).to(torch.float)
+                # image = torch.from_numpy(image).to(torch.float)
+                # mask = torch.from_numpy(mask).to(torch.float)
 
-                # add batch dimension 
+                # # add batch dimension 
 
-                image = image.unsqueeze(0)
-                mask = mask.unsqueeze(0)
+                # image = image.unsqueeze(0)
+                # mask = mask.unsqueeze(0)
 
                 file_list.append((image, mask))
 
@@ -88,8 +91,10 @@ class LIDC_IDRI_Dataset(Dataset):
 
     def __getitem__(self, index):
         image, mask = self.file_list[index]
-        return self.resize(image), self.resize(mask)
-    
+        # print(image.shape, mask.shape)
+        # return self.resize(image), self.resize(mask)
+        return np.array(image, dtype=np.float32), np.array(mask, dtype=np.float32)
+        
     def _normalize_image(self, image):
         min_val = np.min(image)
         max_val = np.max(image)
@@ -99,12 +104,48 @@ class LIDC_IDRI_Dataset(Dataset):
 
         return image
     
+class TransformLIDC(Dataset):
+    mean = None
+    std = None
+
+    def __init__(self, dataset: LIDC_IDRI_Dataset, transform: Optional[Compose] = None) -> None:
+        super().__init__()
+
+        self.dataset = dataset
+
+        if transform is not None:
+            self.transform = transform
+        else:
+            self.transform = Compose(
+                [
+                    A.Resize(256, 256),
+                    ToTensorV2(),
+                ]
+            )
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index) -> Any:
+        image, mask = self.dataset[index] 
+
+        if self.transform is not None:
+            transformed = self.transform(image=image, mask=mask)
+            
+            image = transformed["image"]  # (img_size, img_size)
+            mask = transformed["mask"]  # (img_size, img_size), uint8
+            image = image.to(torch.float)  # (1, img_size, img_size)
+            mask = mask.unsqueeze(0).to(torch.float)  # (1, img_size, img_size)
+            # print(image.shape, mask.shape)
+
+        return image, mask
+
 
 class LIDCDataModule(LightningDataModule):
     def __init__(
         self,
-        nodule_dir: str = "/work/hpc/iai/loc/LIDC-IDRI-Preprocessing/data/Image",
-        clean_dir: str = "/work/hpc/iai/loc/LIDC-IDRI-Preprocessing/data/Clean/Image",
+        nodule_dir: str = "/work/hpc/dqm/LIDC-IDRI-Preprocessing/segment_data/Image",
+        clean_dir: str = "/work/hpc/dqm/LIDC-IDRI-Preprocessing/segment_data/Clean/Image",
         train_val_test_split: Tuple[int, int, int] = (3, 1, 1),
         batch_size: int = 64,
         num_workers: int = 0,
@@ -112,6 +153,8 @@ class LIDCDataModule(LightningDataModule):
         num_nodule: int = 1000,
         num_clean: int = 1000,
         img_size=[128, 128],
+        transform_train: Optional[A.Compose] = None,
+        transform_val: Optional[A.Compose] = None,
     ):
         super().__init__()
 
@@ -125,7 +168,9 @@ class LIDCDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
 
-
+        self.transform_train = transform_train
+        self.transform_val = transform_val
+        
         # get all file_name in folder
 
         file_nodule_list = []
@@ -146,7 +191,9 @@ class LIDCDataModule(LightningDataModule):
                 if file.endswith(".npy"):
                     dicom_path = os.path.join(root, file)
                     file_clean_list.append(dicom_path)
-
+        
+        # print(len(file_nodule_list))
+        
         file_nodule_list = file_nodule_list[:self.num_nodule]
 
         file_clean_list = file_clean_list[:self.num_clean]
@@ -161,6 +208,12 @@ class LIDCDataModule(LightningDataModule):
 
         self.data_test = LIDC_IDRI_Dataset(nodule_test, clean_test, mode="test", img_size=img_size)
 
+        # Transform
+        self.data_train = TransformLIDC(self.data_train, self.transform_train)
+
+        self.data_val = TransformLIDC(self.data_val, self.transform_val)
+
+        self.data_test = TransformLIDC(self.data_test, self.transform_val)
 
     def split_data(self, file_paths, train_val_test_split):
         # get len files
@@ -224,7 +277,30 @@ class LIDCDataModule(LightningDataModule):
         pass
 
 if __name__ == "__main__":
-    datamodule = LIDCDataModule(num_nodule=1000, num_clean=500)
+    datamodule = LIDCDataModule(num_nodule=5, num_clean=2)
     train_dataloader = datamodule.train_dataloader()
     batch_image = next(iter(train_dataloader))
     images, labels = batch_image
+    print(images.shape)
+    print(labels.shape)
+    
+    
+    image = np.load("/work/hpc/dqm/LIDC-IDRI-Preprocessing/segment_data/Image/LIDC-IDRI-0001/0001_NI000_slice000.npy")
+    print(image.dtype)
+    # image = torch.from_numpy(image).to(torch.float)
+    print(image.shape)
+    # image = image.unsqueeze(0)
+    # print(image.shape)
+   
+    # image = np.load("/work/hpc/pgl/LIDC-IDRI-Preprocessing/segment_data/Image/LIDC-IDRI-0001/0001_NI000_slice000.npy")
+    # transform = A.Compose(
+    #     [
+    #         A.Resize(256, 256),
+    #         ToTensorV2(),
+    #     ]
+    # )
+    # abc = transform(image=image)["image"]
+    # print(abc.shape)
+    # abc = abc.to(torch.float)
+    # print(abc.shape)
+    

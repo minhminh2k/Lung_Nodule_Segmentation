@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import sys
 import torch.nn.functional as F
-sys.path.append('/data/thanhdd/Lang/Lung-Segmentation/src/models/components')
+# sys.path.append('/data/thanhdd/Lang/Lung-Segmentation/src/models/components')
+sys.path.append('/work/hpc/dqm/Lung-Nodule-Segmentation/src/models/components')
 from Encoder import mit
 from Decoder import mlp
 from mmcv.cnn import ConvModule
@@ -49,24 +50,24 @@ class ESFPNetStructure(nn.Module):
 
     def _init_weights(self):
 
-        if model_type == 'B0':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b0.pth')
-        if model_type == 'B1':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b1.pth')
-        if model_type == 'B2':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b2.pth')
-        if model_type == 'B3':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b3.pth')
-        if model_type == 'B4':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b4.pth')
-        if model_type == 'B5':
-            pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b5.pth')
+        # if model_type == 'B0':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b0.pth')
+        # if model_type == 'B1':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b1.pth')
+        # if model_type == 'B2':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b2.pth')
+        # if model_type == 'B3':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b3.pth')
+        # if model_type == 'B4':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b4.pth')
+        # if model_type == 'B5':
+        #     pretrained_dict = torch.load('/data/thanhdd/Lang/Lung-Segmentation/src/models/components/Pretrained/mit_b5.pth')
 
 
-        model_dict = self.backbone.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        self.backbone.load_state_dict(model_dict)
+        # model_dict = self.backbone.state_dict()
+        # pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        # model_dict.update(pretrained_dict)
+        # self.backbone.load_state_dict(model_dict)
         print("successfully loaded!!!!")
 
 
@@ -124,3 +125,7 @@ class ESFPNetStructure(nn.Module):
         out = self.linear_pred(torch.cat([lp1_resized, lp2_resized, lp3_resized, lp4_resized], dim=1))
 
         return out
+    
+if __name__ == "__main__":
+    model = ESFPNetStructure()
+    print(model)
