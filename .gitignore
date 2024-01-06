@@ -158,3 +158,8 @@ cmt.txt
 /SaveModel
 # /logs
 /src/models/components/Pretrained
+
+/checkpoints
+/images
+/inference
+/outputs

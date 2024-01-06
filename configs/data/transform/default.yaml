@@ -1,0 +1,26 @@
+_target_: albumentations.Compose
+
+transforms:
+  # - _target_: albumentations.ShiftScaleRotate
+  #   shift_limit: 0.05
+  #   scale_limit: 0.05
+  #   rotate_limit: 15
+  #   p: 0.15
+  - _target_: albumentations.Affine
+    translate_percent: 0.05 # [-0.05, 0.05]
+    rotate: 5 # [-5, 5]
+    shear: 5 # [-5, 5]
+    p: 0.3
+  - _target_: albumentations.HorizontalFlip
+    p: 0.15
+  # - _target_: albumentations.RandomRotate90
+  #   p: 0.5      
+  - _target_: albumentations.ElasticTransform
+    alpha: 1.1
+    alpha_affine: 0.5
+    sigma: 5
+    p: 0.15
+  - _target_: albumentations.Resize
+    height: 256
+    width: 256
+  - _target_: albumentations.pytorch.transforms.ToTensorV2

@@ -6,7 +6,7 @@ import pyrootutils
 from pytorch_lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
-from torchmetrics.classification import Dice
+from torchmetrics.classification import Dice, JaccardIndex
 import torch.nn.functional as F
 pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
@@ -66,7 +66,7 @@ class ESFPModule(LightningModule):
         scheduler: torch.optim.lr_scheduler,
         loss: str,
         weight: List[int] = None,
-        img_size: List[int] = [352, 352],
+        img_size: int = 256,
     ):
         super().__init__()
 
@@ -75,12 +75,13 @@ class ESFPModule(LightningModule):
         self.save_hyperparameters(logger=False)
 
         self.net = net
-        self.img_size= [256, 256]
+        self.img = [self.hparams.img_size, self.hparams.img_size]
+        self.loss = self.hparams.loss
         # loss function
-        if loss == 'dc-ce':
+        if self.loss == 'dc-ce':
             self.criterion = DC_and_CE_loss({'batch_dice': True, 'smooth': 1e-5, 'do_bg': False}, {})
-        elif loss == 'ce':
-            self.criterion = CrossEntropyLoss(weight=torch.Tensor(weight))
+        elif self.loss == 'ce':
+            self.criterion = CrossEntropyLoss(weight=torch.Tensor(self.hparams.weight))
         else:
             raise ValueError('Not implement loss')
 
@@ -89,6 +90,10 @@ class ESFPModule(LightningModule):
         self.val_dice = Dice().to(device)
         self.test_dice = Dice().to(device)
 
+        self.train_jaccard = JaccardIndex(task="binary", num_classes=2).to(device)
+        self.val_jaccard = JaccardIndex(task="binary", num_classes=2).to(device)
+        self.test_jaccard = JaccardIndex(task="binary", num_classes=2).to(device)
+        
         # for averaging loss across batches
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
@@ -96,10 +101,11 @@ class ESFPModule(LightningModule):
 
         # for tracking best so far validation accuracy
         self.val_dice_best = MaxMetric()
+        self.val_jaccard_best = MaxMetric()
 
     def forward(self, x: torch.Tensor):
         pred = self.net(x)
-        pred = F.upsample(pred, size=self.img_size, mode='bilinear', align_corners=False)
+        pred = F.upsample(pred, size=self.img, mode='bilinear', align_corners=False)
         # print(pred.shape)
         return pred
 
@@ -107,6 +113,7 @@ class ESFPModule(LightningModule):
         # by default lightning executes validation step sanity checks before training starts,
         # so we need to make sure val_dice_best doesn't store accuracy from these checks
         self.val_dice_best.reset()
+        self.val_jaccard_best.reset()
 
     def model_step(self, batch: Any):
         x, y = batch
@@ -115,17 +122,20 @@ class ESFPModule(LightningModule):
         loss, preds = ange_structure_loss(logits, y.float())
         # loss = self.criterion(logits, y.squeeze(1))
         # preds = torch.argmax(logits, dim=1)
-        return loss, preds.to(device), y.to(device)
+        return loss, preds.to(device), y.to(device) # torch.Size([8, 256, 256]) torch.Size([8, 1, 256, 256])
 
     def training_step(self, batch: Any, batch_idx: int):
         loss, preds, targets = self.model_step(batch)
-
+        
         # update and log metrics
         self.train_loss(loss)
         # print(preds, targets)
         self.train_dice(preds, targets)
+        self.train_jaccard(preds.unsqueeze(1), targets)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/dice", self.train_dice, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train/jaccard", self.train_jaccard, on_step=False, on_epoch=True, prog_bar=True)
+        
 
         # we can return here dict with any tensors
         # and then read it in some callback or in `training_epoch_end()` below
@@ -150,17 +160,24 @@ class ESFPModule(LightningModule):
         # update and log metrics
         self.val_loss(loss)
         self.val_dice(preds, targets)
+        self.val_jaccard(preds.unsqueeze(1), targets)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/dice", self.val_dice, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/jaccard", self.val_jaccard, on_step=False, on_epoch=True, prog_bar=True)
+        
 
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def validation_epoch_end(self, outputs: List[Any]):
         acc = self.val_dice.compute()  # get current val acc
         self.val_dice_best(acc)  # update best so far val acc
+        
+        acc1 = self.val_jaccard.compute()  # get current val acc
+        self.val_jaccard_best(acc1)  # update best so far val acc
         # log `val_dice_best` as a value through `.compute()` method, instead of as a metric object
         # otherwise metric would be reset by lightning after each epoch
         self.log("val/dice_best", self.val_dice_best.compute(), prog_bar=True)
+        self.log("val/jaccard_best", self.val_jaccard_best.compute(), prog_bar=True)
 
     def test_step(self, batch: Any, batch_idx: int):
         loss, preds, targets = self.model_step(batch)
@@ -168,8 +185,10 @@ class ESFPModule(LightningModule):
         # update and log metrics
         self.test_loss(loss)
         self.test_dice(preds, targets)
+        self.test_jaccard(preds.unsqueeze(1), targets)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/dice", self.test_dice, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/jaccard", self.test_jaccard, on_step=False, on_epoch=True, prog_bar=True)
 
         return {"loss": loss, "preds": preds, "targets": targets}
 
@@ -210,7 +229,7 @@ if __name__ == "__main__":
     @hydra.main(version_base=None, config_path=config_path, config_name="unetplusplus_module.yaml")
     def main(cfg: DictConfig):
         unetplusplus_module = hydra.utils.instantiate(cfg)
-        x = torch.randn(2, 1, 240, 240)
+        x = torch.randn(1, 1, 240, 240)
         logits = unetplusplus_module(x)
         preds = torch.argmax(logits, dim=1)
         print(logits.shape, preds.shape)
