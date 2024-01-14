@@ -9,6 +9,6 @@ train_val_test_split: [3, 1, 1]
 batch_size: 8
 num_workers: 0
 pin_memory: True
-num_nodule: 13900 
-num_clean: 6880 
+num_nodule: 100 # 13900 
+num_clean: 100 # 6880 
 img_size: [256, 256]

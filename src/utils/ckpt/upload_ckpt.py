@@ -4,11 +4,11 @@ import wandb
 api = wandb.Api()
 
 # Get the run
-run_id = "ictom8y2"
+run_id = "3f9yjeab"
 run = api.run(f"minhqd9112003/medical-image/{run_id}")
 
 # Location of file you want to upload
-ckpt_path = "/work/hpc/dqm/Lung-Nodule-Segmentation/logs/train/runs/2024-01-04_13-38-03/checkpoints/epoch_064.ckpt"
+ckpt_path = "/work/hpc/dqm/Lung-Nodule-Segmentation/logs/train/runs/2024-01-10_01-06-52/checkpoints/epoch_134.ckpt"
 
 # Upload
 run.upload_file(ckpt_path)

@@ -15,4 +15,4 @@ task_name: "eval"
 tags: ["dev"]
 
 # passing checkpoint path is necessary for evaluation
-ckpt_path: /work/hpc/dqm/Lung-Nodule-Segmentation/checkpoints/esfp_full_data.ckpt
+ckpt_path: /work/hpc/dqm/Lung-Nodule-Segmentation/checkpoints/epoch_199.ckpt
