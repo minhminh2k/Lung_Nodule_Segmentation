@@ -160,5 +160,5 @@ cmt.txt
 /src/models/components/Pretrained
 
 /checkpoints
-/images
+# /images
 /outputs

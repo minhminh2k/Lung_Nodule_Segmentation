@@ -48,6 +48,7 @@ def main():
     model.eval()
     
     preds = model(image)
+    # print(preds.shape)
     preds = preds.squeeze(0)
     preds = preds.sigmoid()
     threshold = torch.tensor([0.5]) # .to(device)
